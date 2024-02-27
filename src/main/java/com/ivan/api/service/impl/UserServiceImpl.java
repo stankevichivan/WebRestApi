@@ -1,84 +1,126 @@
 package com.ivan.api.service.impl;
 
-import com.ivan.api.dto.event.EventDto;
-import com.ivan.api.dto.file.FileDto;
 import com.ivan.api.dto.user.UserDto;
-import com.ivan.api.model.Event;
-import com.ivan.api.model.File;
+import com.ivan.api.dto.user.UserStatus;
 import com.ivan.api.model.User;
 import com.ivan.api.repository.UserRepository;
 import com.ivan.api.repository.impl.UserRepositoryImpl;
 import com.ivan.api.service.UserService;
-
+import com.ivan.api.util.HibernateUtil;
 import java.util.ArrayList;
 import java.util.List;
+import org.hibernate.Transaction;
 
 public class UserServiceImpl implements UserService {
 
-    private final UserRepository userRepository = new UserRepositoryImpl();
+  private final UserRepository userRepository = new UserRepositoryImpl();
 
-    @Override
-    public UserDto getById(Long id) {
-        var user = userRepository.getById(id);
-        return createUserDtoFromUser(user);
+  @Override
+  public UserDto getById(Long id) {
+    Transaction transaction = null;
+    try {
+      var session = HibernateUtil.getCurrenntSession();
+      transaction = session.beginTransaction();
+      var user = userRepository.getById(id);
+      var userDtoFromUser = createUserDtoFromUser(user);
+      transaction.commit();
+      return userDtoFromUser;
+    } catch (Exception e) {
+      if (transaction != null) {
+        transaction.rollback();
+      }
+      e.printStackTrace();
+      return null;
     }
+  }
 
-    @Override
-    public List<UserDto> getAll() {
-        var userList = userRepository.getAll();
-        List<UserDto> userDtoList = new ArrayList<>();
-        userList.forEach(user -> {
-            var userDto = createUserDtoFromUser(user);
-            userDtoList.add(userDto);
-        });
-        return userDtoList;
+  @Override
+  public List<UserDto> getAll() {
+    Transaction transaction = null;
+    try {
+      var session = HibernateUtil.getCurrenntSession();
+      transaction = session.beginTransaction();
+      var userList = userRepository.getAll();
+      var userDtoList = userList.stream()
+          .map(UserServiceImpl::createUserDtoFromUser)
+          .toList();
+      transaction.commit();
+      return userDtoList;
+    } catch (Exception e) {
+      if (transaction != null) {
+        transaction.rollback();
+      }
+      e.printStackTrace();
+      return new ArrayList<>();
     }
+  }
 
-    @Override
-    public UserDto create(UserDto userDto) {
-        User user = new User();
-        user.setName(userDto.name());
-        createUserFromUserDto(userDto, user);
-        return createUserDtoFromUser(userRepository.create(user));
+  @Override
+  public UserDto create(UserDto userDto) {
+    Transaction transaction = null;
+    try {
+      var session = HibernateUtil.getCurrenntSession();
+      transaction = session.beginTransaction();
+      User user = new User();
+      user.setStatus(UserStatus.NEW.name());
+      user.setName(userDto.name());
+      var userDtoFromUser = createUserDtoFromUser(userRepository.create(user));
+      transaction.commit();
+      return userDtoFromUser;
+    } catch (Exception e) {
+      if (transaction != null) {
+        transaction.rollback();
+      }
+      e.printStackTrace();
+      return null;
     }
+  }
 
-    private static UserDto createUserDtoFromUser(User user) {
-        var userDto = UserDto.builder().id(user.getId()).name(user.getName()).eventDtoList(new ArrayList<>()).build();
-        user.getEvents().forEach(event -> {
-            var file = event.getFile();
-            var fileDto = FileDto.builder().id(file.getId()).fileName(file.getFileName()).filePath(file.getFilePath()).build();
-            var eventDto = EventDto.builder().id(event.getId()).fileDto(fileDto).build();
-            userDto.eventDtoList().add(eventDto);
-        });
-        return userDto;
+  @Override
+  public UserDto update(UserDto userDto, Long id) {
+    Transaction transaction = null;
+    try {
+      var session = HibernateUtil.getCurrenntSession();
+      transaction = session.beginTransaction();
+      var user = new User();
+      user.setId(id);
+      user.setName(userDto.name());
+      user.setStatus(UserStatus.UPDATED.name());
+      var userDtoFromUser = createUserDtoFromUser(userRepository.update(user));
+      transaction.commit();
+      return userDtoFromUser;
+    } catch (Exception e) {
+      if (transaction != null) {
+        transaction.rollback();
+      }
+      e.printStackTrace();
+      return null;
     }
+  }
 
-    @Override
-    public UserDto update(UserDto userDto, Long id) {
-        var userDto1 = getById(id);
-        var user = new User();
-        user.setId(id);
-        user.setName(userDto.name());
-        createUserFromUserDto(userDto1, user);
-        var updatedUser = userRepository.update(user);
-        return UserDto.builder().name(updatedUser.getName()).id(updatedUser.getId()).build();
+  @Override
+  public void deleteById(Long id) {
+    Transaction transaction = null;
+    try {
+      var session = HibernateUtil.getCurrenntSession();
+      transaction = session.beginTransaction();
+      userRepository.deleteById(id);
+      transaction.commit();
+    } catch (Exception e) {
+      if (transaction != null) {
+        transaction.rollback();
+      }
+      e.printStackTrace();
     }
+  }
 
-    private static void createUserFromUserDto(UserDto userDto, User user) {
-        userDto.eventDtoList().forEach(eventDto -> {
-            Event event = new Event();
-            File file = new File();
-            file.setId(eventDto.fileDto().id());
-            file.setFilePath(eventDto.fileDto().filePath());
-            file.setFileName(eventDto.fileDto().fileName());
-            event.setFile(file);
-            event.setId(eventDto.id());
-            user.addEvent(event);
-        });
-    }
-
-    @Override
-    public void deleteById(Long id) {
-        userRepository.deleteById(id);
-    }
+  private static UserDto createUserDtoFromUser(User user) {
+    return UserDto.builder()
+        .id(user.getId())
+        .name(user.getName())
+        .status(UserStatus.valueOf(user.getStatus()))
+        .createdAt(user.getCreatedAt())
+        .updatedAt(user.getUpdatedAt())
+        .build();
+  }
 }

@@ -1,11 +1,13 @@
 package com.ivan.api.dto.user;
 
-import com.ivan.api.dto.event.EventDto;
+import java.time.LocalDate;
 import lombok.Builder;
 
-import java.util.List;
-
 @Builder
-public record UserDto(long id, String name, List<EventDto> eventDtoList) {
+public record UserDto(long id,
+                      String name,
+                      UserStatus status,
+                      LocalDate createdAt,
+                      LocalDate updatedAt) {
 
 }
